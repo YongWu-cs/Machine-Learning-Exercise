@@ -7,12 +7,13 @@ class ReLULayer(object):
         # remember the input for later backpropagation
         self.input = input
         # return the ReLU of the input
-        relu = np.maximum(0, input)
+        relu = np.maximum(input, 0)
         return relu
 
     def backward(self, upstream_gradient):
         # compute the derivative of ReLU from upstream_gradient and the stored input
-        downstream_gradient = upstream_gradient * (self.input > 0)
+        temp = self.input > 0
+        downstream_gradient = upstream_gradient * temp
         return downstream_gradient
 
     def update(self, learning_rate):
@@ -23,20 +24,21 @@ class OutputLayer(object):
     def __init__(self, n_classes):
         self.n_classes = n_classes
 
-    def forward(self, input):
+    def forward(self, inputs):
         # remember the input for later backpropagation
-        self.input = input
+        self.input = inputs
         # return the softmax of the input
-        softmax = np.exp(input) / np.sum(np.exp(input), axis=1, keepdims=True)
+        exp_inputs = np.exp(inputs)
+        softmax = exp_inputs / np.sum(exp_inputs)
+        # softmax = np.exp(input) / np.sum(np.exp(input), axis=1, keepdims=True)
         return softmax
 
     def backward(self, predicted_posteriors, true_labels):
         # return the loss derivative with respect to the stored inputs
         # (use cross-entropy loss and the chain rule for softmax,
         # as derived in the lecture)
-        batch_size = predicted_posteriors.shape[0]
-        one_hot_true_labels = np.eye(self.n_classes)[true_labels]
-        downstream_gradient = (predicted_posteriors - one_hot_true_labels) / batch_size
+        one_hot_labels = np.eye(self.n_classes)[true_labels]
+        downstream_gradient = (predicted_posteriors - one_hot_labels) / predicted_posteriors.shape[0]
         return downstream_gradient
 
     def update(self, learning_rate):
@@ -48,8 +50,8 @@ class LinearLayer(object):
         self.n_inputs = n_inputs
         self.n_outputs = n_outputs
         # randomly initialize weights and intercepts
-        self.B = np.random.normal(size=(n_inputs, n_outputs))
-        self.b = np.random.normal(size=n_outputs)
+        self.B = np.random.normal((n_inputs, n_outputs))
+        self.b = np.random.normal(n_outputs)
 
     def forward(self, input):
         # remember the input for later backpropagation
@@ -73,6 +75,7 @@ class LinearLayer(object):
         self.B = self.B - learning_rate * self.grad_B
         self.b = self.b - learning_rate * self.grad_b
 
+
 ####################################
 
 class MLP(object):
@@ -86,7 +89,7 @@ class MLP(object):
         # layer_size[k]: number of neurons in layer k
         # (specifically: layer_sizes[-1] is the number of classes)
         self.n_layers = len(layer_sizes)
-        self.layers   = []
+        self.layers = []
 
         # create interior layers (linear + ReLU)
         n_in = n_features
@@ -137,30 +140,30 @@ class MLP(object):
             for batch in range(n_batches):
                 # create mini-batch
                 start = batch * batch_size
-                x_batch = x[permutation[start:start+batch_size]]
-                y_batch = y[permutation[start:start+batch_size]]
+                x_batch = x[permutation[start:start + batch_size]]
+                y_batch = y[permutation[start:start + batch_size]]
 
                 # perform one forward and backward pass and update network parameters
                 self.update(x_batch, y_batch, learning_rate)
 
+
 ##################################
 
-if __name__=="__main__":
-
+if __name__ == "__main__":
     # set training/test set size
     N = 2000
 
     # create training and test data
     X_train, Y_train = datasets.make_moons(N, noise=0.05)
-    X_test,  Y_test  = datasets.make_moons(N, noise=0.05)
+    X_test, Y_test = datasets.make_moons(N, noise=0.05)
     n_features = 2
-    n_classes  = 2
+    n_classes = 2
 
     # standardize features to be in [-1, 1]
-    offset  = X_train.min(axis=0)
+    offset = X_train.min(axis=0)
     scaling = X_train.max(axis=0) - offset
     X_train = ((X_train - offset) / scaling - 0.5) * 2.0
-    X_test  = ((X_test  - offset) / scaling - 0.5) * 2.0
+    X_test = ((X_test - offset) / scaling - 0.5) * 2.0
 
     # set hyperparameters (play with these!)
     layer_sizes = [5, 5, n_classes]
@@ -181,4 +184,3 @@ if __name__=="__main__":
     # compute and output the error rate of predicted_classes
     error_rate = np.mean(predicted_classes != Y_test)
     print("error rate:", error_rate)
-
